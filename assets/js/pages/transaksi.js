@@ -2,6 +2,8 @@
 
 let pendingCashFlowImport = null;
 let cashFlowImportBusy = false;
+const TRANSAKSI_PAGE_SIZE = 50;
+let transaksiCurrentPage = 1;
 
 function refreshAllUI() {
     renderTransaksiTable();
@@ -32,6 +34,57 @@ function getFilteredTransaksi() {
     return list.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
 }
 
+function resetTransaksiPage() {
+    transaksiCurrentPage = 1;
+    renderTransaksiTable();
+}
+
+function renderTransaksiPagination(totalRows) {
+    const container = document.getElementById('transaksiPagination');
+    if (!container) return;
+
+    const pageCount = Math.ceil(totalRows / TRANSAKSI_PAGE_SIZE);
+    transaksiCurrentPage = Math.min(transaksiCurrentPage, Math.max(pageCount, 1));
+    container.replaceChildren();
+    container.classList.toggle('hidden', totalRows <= TRANSAKSI_PAGE_SIZE);
+    if (totalRows <= TRANSAKSI_PAGE_SIZE) return;
+
+    const startRow = (transaksiCurrentPage - 1) * TRANSAKSI_PAGE_SIZE + 1;
+    const endRow = Math.min(transaksiCurrentPage * TRANSAKSI_PAGE_SIZE, totalRows);
+    const status = document.createElement('span');
+    status.className = 'text-xs text-slate-500';
+    status.textContent = `Menampilkan ${startRow}-${endRow} dari ${totalRows} transaksi`;
+
+    const controls = document.createElement('div');
+    controls.className = 'flex items-center gap-2';
+    const previous = document.createElement('button');
+    previous.type = 'button';
+    previous.className = 'rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
+    previous.textContent = 'Sebelumnya';
+    previous.disabled = transaksiCurrentPage === 1;
+    previous.addEventListener('click', () => {
+        transaksiCurrentPage -= 1;
+        renderTransaksiTable();
+    });
+
+    const pageStatus = document.createElement('span');
+    pageStatus.className = 'min-w-16 text-center text-xs font-semibold text-slate-600';
+    pageStatus.textContent = `${transaksiCurrentPage} / ${pageCount}`;
+
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = previous.className;
+    next.textContent = 'Berikutnya';
+    next.disabled = transaksiCurrentPage === pageCount;
+    next.addEventListener('click', () => {
+        transaksiCurrentPage += 1;
+        renderTransaksiTable();
+    });
+
+    controls.append(previous, pageStatus, next);
+    container.append(status, controls);
+}
+
 function renderTransaksiTable() {
     const tbody = document.getElementById('transaksiTableBody');
     if (!tbody) return;
@@ -42,12 +95,17 @@ function renderTransaksiTable() {
 
     if (list.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400 italic">Tidak ada catatan transaksi.</td></tr>`;
+        renderTransaksiPagination(0);
         return;
     }
 
+    const pageCount = Math.ceil(list.length / TRANSAKSI_PAGE_SIZE);
+    transaksiCurrentPage = Math.min(transaksiCurrentPage, pageCount);
+    const startIndex = (transaksiCurrentPage - 1) * TRANSAKSI_PAGE_SIZE;
+    const pageRows = list.slice(startIndex, startIndex + TRANSAKSI_PAGE_SIZE);
     const isAdmin = window.isAdmin;
 
-    list.forEach(t => {
+    pageRows.forEach(t => {
         const isMasuk = t.tipe === 'Pemasukan';
         const katObj = window.dataStore.kategori.find(k => k.id === t.kategoriId);
         const memberObj = (window.dataStore.members || []).find(member => member.id === (t.memberId || t.wargaId));
@@ -81,6 +139,7 @@ function renderTransaksiTable() {
             </tr>
         `;
     });
+    renderTransaksiPagination(list.length);
 }
 
 function getTransaksiExportRows() {
