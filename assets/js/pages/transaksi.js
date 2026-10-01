@@ -1,5 +1,8 @@
 // Halaman Transaksi: daftar, filter, catat/edit/hapus transaksi
 
+let pendingCashFlowImport = null;
+let cashFlowImportBusy = false;
+
 function refreshAllUI() {
     renderTransaksiTable();
     populateCategoryFilter();
@@ -278,6 +281,7 @@ async function saveTransaksi(e) {
     const id = document.getElementById('transaksiId')?.value;
     const memberIdSelected = document.getElementById('txMemberId')?.value;
     const memberSearch = document.getElementById('txMemberSearch')?.value.trim();
+    const selectedMember = (window.dataStore.members || []).find(member => member.id === memberIdSelected);
 
     if (memberSearch && !memberIdSelected) {
         window.showToast('Pilih member dari daftar saran atau kosongkan pencarian.', true);
@@ -290,6 +294,7 @@ async function saveTransaksi(e) {
         tipe: document.getElementById('txTipe')?.value || 'Pemasukan',
         kategoriId: document.getElementById('txKategori')?.value || '',
         jumlah: Number(document.getElementById('txJumlah')?.value) || 0,
+        memberid: selectedMember ? normalizeMemberNla(selectedMember.nla) : '',
         memberId: memberIdSelected || '',
         keterangan: document.getElementById('txKeterangan')?.value || ''
     };
@@ -301,3 +306,339 @@ async function saveTransaksi(e) {
 function editTransaksi(id) { openModalTransaksi(id); }
 
 function deleteTransaksi(id, desc) { window.confirmDelete('transaksi', id, desc); }
+
+function openCashFlowImport() {
+    const modal = document.getElementById('modalCashFlowImport');
+    const fileInput = document.getElementById('cashFlowFile');
+    const summary = document.getElementById('cashFlowImportSummary');
+    const preview = document.getElementById('cashFlowImportPreview');
+    const confirmButton = document.getElementById('btnConfirmCashFlowImport');
+    if (!modal) return;
+
+    pendingCashFlowImport = null;
+    if (fileInput) fileInput.value = '';
+    if (summary) {
+        summary.replaceChildren();
+        summary.classList.add('hidden');
+    }
+    if (preview) {
+        preview.replaceChildren();
+        preview.classList.add('hidden');
+    }
+    if (confirmButton) confirmButton.disabled = true;
+    modal.classList.remove('hidden');
+}
+
+function closeCashFlowImport() {
+    if (cashFlowImportBusy) return;
+    document.getElementById('modalCashFlowImport')?.classList.add('hidden');
+}
+
+function normalizeCashFlowHeader(value) {
+    return String(value ?? '').trim().toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function parseCashFlowDate(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.toISOString().slice(0, 10);
+    }
+
+    if (typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(String(value ?? '').trim())) {
+        const serial = Number(value);
+        if (serial > 20000 && serial < 100000) {
+            return new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000).toISOString().slice(0, 10);
+        }
+    }
+
+    const text = String(value ?? '').trim();
+    const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+
+    const indonesianMatch = text.match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/i);
+    if (indonesianMatch) {
+        const monthNames = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+        const month = monthNames.indexOf(indonesianMatch[2].toLocaleLowerCase());
+        if (month >= 0) {
+            const date = new Date(Date.UTC(Number(indonesianMatch[3]), month, Number(indonesianMatch[1])));
+            return date.toISOString().slice(0, 10);
+        }
+    }
+
+    return '';
+}
+
+function parseCashFlowAmount(value) {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const text = String(value ?? '').trim();
+    if (!text) return 0;
+    const numericText = text.replace(/[^\d-]/g, '');
+    if (!numericText || numericText === '-') return null;
+    const amount = Number(numericText);
+    return Number.isFinite(amount) ? amount : null;
+}
+
+function normalizeMemberNla(value) {
+    const nla = String(value ?? '').trim();
+    return /^\d+$/.test(nla) ? nla.padStart(3, '0') : '';
+}
+
+function findMemberByNla(nla) {
+    return (window.dataStore.members || []).find(member => normalizeMemberNla(member.nla) === nla);
+}
+
+function findMemberByName(name) {
+    const normalizedName = String(name ?? '').trim().toLocaleLowerCase();
+    return (window.dataStore.members || []).find(member => String(member.name ?? '').trim().toLocaleLowerCase() === normalizedName);
+}
+
+function stableImportHash(value) {
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+}
+
+function buildCashFlowImport(rows) {
+    const requiredHeaders = ['tanggal', 'keterangan', 'pemasukan', 'pengeluaran', 'nla', 'note'];
+    const headerIndex = rows.findIndex(row => {
+        const headers = row.map(normalizeCashFlowHeader);
+        return requiredHeaders.every(header => headers.includes(header));
+    });
+    if (headerIndex < 0) throw new Error('Header Tanggal, Keterangan, Pemasukan, Pengeluaran, NLA, dan Note tidak ditemukan.');
+
+    const headers = rows[headerIndex].map(normalizeCashFlowHeader);
+    const column = Object.fromEntries(requiredHeaders.map(header => [header, headers.indexOf(header)]));
+    const transactions = [];
+    const errors = [];
+    const warnings = [];
+    let skippedRows = 0;
+
+    rows.slice(headerIndex + 1).forEach((row, offset) => {
+        if (!row.some(value => String(value ?? '').trim())) return;
+        const rowNumber = headerIndex + offset + 2;
+        const date = parseCashFlowDate(row[column.tanggal]);
+        const description = String(row[column.keterangan] ?? '').trim();
+        const note = String(row[column.note] ?? '').trim();
+        const income = parseCashFlowAmount(row[column.pemasukan]);
+        const expense = parseCashFlowAmount(row[column.pengeluaran]);
+
+        if (!date || !note || income === null || expense === null) {
+            errors.push(`Baris ${rowNumber}: tanggal, Note, Pemasukan, atau Pengeluaran tidak valid.`);
+            return;
+        }
+        if (income < 0 || expense < 0 || (income > 0 && expense > 0)) {
+            errors.push(`Baris ${rowNumber}: nilai pemasukan/pengeluaran negatif atau keduanya terisi.`);
+            return;
+        }
+        if (income === 0 && expense === 0) {
+            skippedRows += 1;
+            return;
+        }
+
+        const rawNla = row[column.nla];
+        let nla = normalizeMemberNla(rawNla);
+        let member = nla ? findMemberByNla(nla) : null;
+        if (!nla && String(rawNla ?? '').trim()) {
+            member = findMemberByName(rawNla);
+            nla = member ? normalizeMemberNla(member.nla) : '';
+            if (!member) warnings.push(`Baris ${rowNumber}: NLA "${String(rawNla).trim()}" tidak cocok dengan member; transaksi tetap diimpor tanpa member.`);
+        } else if (nla && !member) {
+            warnings.push(`Baris ${rowNumber}: NLA ${nla} tidak ditemukan di koleksi members; transaksi tetap diimpor tanpa member ID dokumen.`);
+        }
+
+        const type = income > 0 ? 'Pemasukan' : 'Pengeluaran';
+        const amount = income > 0 ? income : expense;
+        const sourceKey = [rowNumber, date, description, note, type, amount, nla].join('|');
+        transactions.push({
+            id: `cashflow_${stableImportHash(sourceKey)}`,
+            tanggal: date,
+            tipe: type,
+            kategoriNama: note,
+            jumlah: amount,
+            keterangan: description,
+            memberid: nla,
+            memberId: member?.id || ''
+        });
+    });
+
+    if (transactions.length === 0 && errors.length === 0) throw new Error('Tidak ada transaksi bernilai untuk diimpor.');
+
+    return {
+        transactions,
+        errors,
+        warnings,
+        skippedRows,
+        incomeTotal: transactions.filter(item => item.tipe === 'Pemasukan').reduce((sum, item) => sum + item.jumlah, 0),
+        expenseTotal: transactions.filter(item => item.tipe === 'Pengeluaran').reduce((sum, item) => sum + item.jumlah, 0)
+    };
+}
+
+function renderCashFlowImportResult(result, fileName) {
+    const summary = document.getElementById('cashFlowImportSummary');
+    const preview = document.getElementById('cashFlowImportPreview');
+    const confirmButton = document.getElementById('btnConfirmCashFlowImport');
+    if (!summary || !preview || !confirmButton) return;
+
+    summary.replaceChildren();
+    const details = [
+        `${fileName}: ${result.transactions.length} transaksi`,
+        `Pemasukan ${formatRupiah(result.incomeTotal)}`,
+        `Pengeluaran ${formatRupiah(result.expenseTotal)}`,
+        `${result.skippedRows} baris bernilai nol dilewati`
+    ];
+    const summaryText = document.createElement('p');
+    summaryText.className = 'font-semibold';
+    summaryText.textContent = details.join(' | ');
+    summary.appendChild(summaryText);
+
+    if (result.errors.length) {
+        const errors = document.createElement('p');
+        errors.className = 'mt-2 text-rose-700';
+        errors.textContent = `Impor diblokir: ${result.errors.slice(0, 5).join(' ')}`;
+        summary.appendChild(errors);
+    }
+    if (result.warnings.length) {
+        const warnings = document.createElement('p');
+        warnings.className = 'mt-2 text-amber-700';
+        warnings.textContent = `${result.warnings.length} peringatan. ${result.warnings.slice(0, 3).join(' ')}`;
+        summary.appendChild(warnings);
+    }
+
+    preview.replaceChildren();
+    const table = document.createElement('table');
+    table.className = 'w-full text-left text-xs';
+    table.innerHTML = '<thead class="sticky top-0 bg-slate-100 text-slate-600"><tr><th class="p-2">Tanggal</th><th class="p-2">Jenis</th><th class="p-2">Note / Kategori</th><th class="p-2 text-right">Jumlah</th></tr></thead>';
+    const body = document.createElement('tbody');
+    result.transactions.slice(0, 8).forEach(transaction => {
+        const row = document.createElement('tr');
+        row.className = 'border-t border-slate-100';
+        [transaction.tanggal, transaction.tipe, transaction.kategoriNama, formatRupiah(transaction.jumlah)].forEach((value, index) => {
+            const cell = document.createElement('td');
+            cell.className = `p-2${index === 3 ? ' text-right' : ''}`;
+            cell.textContent = value;
+            row.appendChild(cell);
+        });
+        body.appendChild(row);
+    });
+    table.appendChild(body);
+    preview.appendChild(table);
+    if (result.transactions.length > 8) {
+        const remainder = document.createElement('p');
+        remainder.className = 'border-t border-slate-100 p-2 text-xs text-slate-500';
+        remainder.textContent = `dan ${result.transactions.length - 8} transaksi lainnya`;
+        preview.appendChild(remainder);
+    }
+
+    summary.classList.remove('hidden');
+    preview.classList.toggle('hidden', result.transactions.length === 0);
+    confirmButton.disabled = result.transactions.length === 0 || result.errors.length > 0;
+}
+
+async function previewCashFlowFile(event) {
+    const file = event.target.files?.[0];
+    const summary = document.getElementById('cashFlowImportSummary');
+    const confirmButton = document.getElementById('btnConfirmCashFlowImport');
+    if (!file || !summary || !confirmButton) return;
+
+    pendingCashFlowImport = null;
+    confirmButton.disabled = true;
+    try {
+        if (!window.firestoreReadyCollections?.has('members') || !window.firestoreReadyCollections?.has('kategori')) {
+            throw new Error('Tunggu hingga data member dan kategori selesai dimuat, lalu pilih kembali file.');
+        }
+        if (typeof XLSX === 'undefined') throw new Error('Library Excel belum tersedia.');
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) throw new Error('File tidak memiliki worksheet.');
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], { header: 1, raw: true, defval: '', blankrows: false });
+        pendingCashFlowImport = buildCashFlowImport(rows);
+        renderCashFlowImportResult(pendingCashFlowImport, file.name);
+    } catch (error) {
+        summary.replaceChildren();
+        const message = document.createElement('p');
+        message.className = 'text-rose-700';
+        message.textContent = error.message || 'File tidak dapat dibaca.';
+        summary.appendChild(message);
+        summary.classList.remove('hidden');
+    }
+}
+
+function normalizeCategoryName(name) {
+    return String(name ?? '').trim().toLocaleLowerCase();
+}
+
+async function importCashFlowData() {
+    if (!pendingCashFlowImport || cashFlowImportBusy) return;
+    if (typeof window.dbSaveBatch !== 'function') {
+        window.showToast('Fungsi impor Firestore belum tersedia.', true);
+        return;
+    }
+
+    cashFlowImportBusy = true;
+    const confirmButton = document.getElementById('btnConfirmCashFlowImport');
+    if (confirmButton) confirmButton.disabled = true;
+
+    const categories = [...(window.dataStore.kategori || [])];
+    const categoryByName = new Map(categories.map(category => [normalizeCategoryName(category.nama), category]));
+    const categoryOperations = [];
+    const transactions = pendingCashFlowImport.transactions.map(source => {
+        const categoryName = source.kategoriNama.trim();
+        const categoryKey = normalizeCategoryName(categoryName);
+        let category = categoryByName.get(categoryKey);
+
+        if (!category) {
+            category = {
+                id: `cashflow_category_${stableImportHash(categoryKey)}`,
+                nama: categoryName,
+                tipe: source.tipe
+            };
+            categoryByName.set(categoryKey, category);
+            categoryOperations.push({ collectionName: 'kategori', item: category });
+        }
+
+        return {
+            id: source.id,
+            tanggal: source.tanggal,
+            tipe: source.tipe,
+            kategoriId: category.id,
+            jumlah: source.jumlah,
+            keterangan: source.keterangan,
+            memberid: source.memberid,
+            memberId: source.memberId
+        };
+    });
+
+    const operations = [
+        ...categoryOperations,
+        ...transactions.map(item => ({ collectionName: 'transaksi', item }))
+    ];
+    const summary = document.getElementById('cashFlowImportSummary');
+
+    try {
+        const savedCount = await window.dbSaveBatch(operations);
+        if (summary) {
+            const result = document.createElement('p');
+            result.className = 'mt-2 font-semibold text-emerald-700';
+            result.textContent = `Impor selesai: ${transactions.length} transaksi dan ${categoryOperations.length} kategori baru diproses.`;
+            summary.appendChild(result);
+        }
+        window.showToast(`${savedCount} data saldo awal berhasil disimpan.`);
+        pendingCashFlowImport = null;
+        document.getElementById('modalCashFlowImport')?.classList.add('hidden');
+        renderTransaksiTable();
+        populateCategoryFilter();
+    } catch (error) {
+        if (summary) {
+            const message = document.createElement('p');
+            message.className = 'mt-2 text-rose-700';
+            message.textContent = `Impor gagal: ${error.message || 'Terjadi kesalahan saat menyimpan ke Firestore.'}`;
+            summary.appendChild(message);
+        }
+        window.showToast('Impor gagal disimpan ke Firestore.', true);
+    } finally {
+        cashFlowImportBusy = false;
+        if (confirmButton && pendingCashFlowImport) confirmButton.disabled = pendingCashFlowImport.errors.length > 0;
+    }
+}

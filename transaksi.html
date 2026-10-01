@@ -127,6 +127,10 @@
                             <i class="fa-solid fa-file-pdf"></i>
                             <span>PDF</span>
                         </button>
+                        <button onclick="openCashFlowImport()" class="admin-only hidden bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-2 rounded-xl text-sm font-medium inline-flex items-center space-x-2 transition">
+                            <i class="fa-solid fa-file-import"></i>
+                            <span>Impor Saldo Awal</span>
+                        </button>
                         <button onclick="openModalTransaksi()" class="admin-only hidden bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-medium items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 transition">
                             <i class="fa-solid fa-circle-plus"></i>
                             <span>Catat Transaksi Baru</span>
@@ -207,6 +211,28 @@
                     <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">Simpan Transaksi</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL IMPORT SALDO AWAL -->
+    <div id="modalCashFlowImport" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            <button type="button" onclick="closeCashFlowImport()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600" aria-label="Tutup impor">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="font-bold text-xl text-slate-900 mb-2">Impor Saldo Awal</h3>
+            <p class="text-sm text-slate-600 mb-5">Pilih file Cash Flow SSC. Periksa pratinjau sebelum menyimpan transaksi ke Firestore.</p>
+
+            <label for="cashFlowFile" class="block text-xs font-semibold text-slate-600 uppercase mb-1">File Excel (.xlsx / .xls)</label>
+            <input type="file" id="cashFlowFile" accept=".xlsx,.xls" onchange="previewCashFlowFile(event)" class="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:font-semibold file:text-white">
+
+            <div id="cashFlowImportSummary" class="hidden mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700" role="status" aria-live="polite"></div>
+            <div id="cashFlowImportPreview" class="hidden mt-3 max-h-56 overflow-auto rounded-xl border border-slate-200"></div>
+
+            <div class="flex justify-end gap-2 pt-5">
+                <button type="button" onclick="closeCashFlowImport()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">Batal</button>
+                <button type="button" id="btnConfirmCashFlowImport" onclick="importCashFlowData()" disabled class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">Simpan Transaksi</button>
+            </div>
         </div>
     </div>
 

@@ -1,7 +1,7 @@
 // Firebase: inisialisasi, autentikasi admin, sinkronisasi Firestore realtime, dan CRUD (dbSave / confirmDelete)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { firebaseConfig } from "./config/firebase-config.js";
 
@@ -15,6 +15,7 @@ let pendingDeleteInfo = null;
 
 // Data Store Global
 window.dataStore = { members: [], kategori: [], transaksi: [] };
+window.firestoreReadyCollections = new Set();
 window.isAdmin = false;
 
 // Realtime Data Sync from Firestore
@@ -28,6 +29,7 @@ function setupFirestoreSync() {
     wanted.forEach((name) => {
         onSnapshot(collection(db, name), (snapshot) => {
             window.dataStore[name] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            window.firestoreReadyCollections.add(name);
             if (typeof refreshAllUI === 'function') refreshAllUI();
         });
     });
@@ -156,6 +158,25 @@ window.dbSave = async function(colName, item) {
     } catch (err) {
         window.showToast("Gagal menyimpan: " + err.message, true);
     }
+};
+
+window.dbSaveBatch = async function(operations) {
+    if (!currentUser) throw new Error('Anda harus login Admin untuk mengimpor data.');
+    if (!Array.isArray(operations) || operations.some(operation => !operation.item?.id || !operation.collectionName)) {
+        throw new Error('Data impor tidak valid.');
+    }
+
+    const chunkSize = 450;
+    for (let offset = 0; offset < operations.length; offset += chunkSize) {
+        const batch = writeBatch(db);
+        const chunk = operations.slice(offset, offset + chunkSize);
+        chunk.forEach(({ collectionName, item }) => {
+            batch.set(doc(db, collectionName, item.id), { ...item });
+        });
+        await batch.commit();
+    }
+
+    return operations.length;
 };
 
 window.confirmDelete = function(colName, id, label) {
