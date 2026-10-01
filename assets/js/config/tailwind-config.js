@@ -6,7 +6,7 @@ tailwind.config = {
                 sans: ['Inter', 'sans-serif'],
             },
             colors: {
-                tulip: {
+                ssc: {
                     50: '#f0fdf4',
                     100: '#dcfce7',
                     500: '#22c55e',

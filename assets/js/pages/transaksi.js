@@ -47,7 +47,8 @@ function renderTransaksiTable() {
     list.forEach(t => {
         const isMasuk = t.tipe === 'Pemasukan';
         const katObj = window.dataStore.kategori.find(k => k.id === t.kategoriId);
-        const wargaObj = window.dataStore.warga.find(w => w.id === t.wargaId);
+        const memberObj = (window.dataStore.members || []).find(member => member.id === (t.memberId || t.wargaId));
+        const memberLabel = memberObj ? getMemberLabel(memberObj) : '';
         const desc = t.keterangan || (katObj ? katObj.nama : 'Transaksi Kas');
 
         tbody.innerHTML += `
@@ -61,7 +62,7 @@ function renderTransaksiTable() {
                 <td class="p-4 font-semibold text-slate-800">${katObj ? katObj.nama : 'Umum'}</td>
                 <td class="p-4 text-slate-600">
                     ${t.keterangan || '-'}
-                    ${wargaObj ? `<div class="text-xs text-emerald-700 font-medium"><i class="fa-solid fa-user text-[10px]"></i> ${wargaObj.nama} (${wargaObj.blok})</div>` : ''}
+                    ${memberObj ? `<div class="text-xs text-emerald-700 font-medium"><i class="fa-solid fa-user text-[10px]"></i> ${memberLabel}</div>` : ''}
                 </td>
                 <td class="p-4 text-right font-bold ${isMasuk ? 'text-emerald-600' : 'text-rose-600'}">
                     ${formatRupiah(t.jumlah)}
@@ -82,13 +83,14 @@ function renderTransaksiTable() {
 function getTransaksiExportRows() {
     return getFilteredTransaksi().map(t => {
         const katObj = window.dataStore.kategori.find(k => k.id === t.kategoriId);
-        const wargaObj = window.dataStore.warga.find(w => w.id === t.wargaId);
+        const memberObj = (window.dataStore.members || []).find(member => member.id === (t.memberId || t.wargaId));
+        const memberLabel = memberObj ? getMemberLabel(memberObj) : '';
 
         return {
             Tanggal: t.tanggal || '',
             Jenis: t.tipe || '',
             Kategori: katObj ? katObj.nama : 'Umum',
-            'Keterangan / Warga': [t.keterangan || '-', wargaObj ? `${wargaObj.nama} (${wargaObj.blok})` : ''].filter(Boolean).join(' - '),
+            'Keterangan / Member SSC': [t.keterangan || '-', memberLabel].filter(Boolean).join(' - '),
             'Jumlah (Rp)': Number(t.jumlah) || 0
         };
     });
@@ -125,13 +127,13 @@ function downloadTransaksiPdf() {
     const periodTitle = bulan ? `Periode ${bulan}` : 'Semua Periode';
 
     pdf.setFontSize(16);
-    pdf.text('Catatan Transaksi Kas Warga Tulip IX', 14, 15);
+    pdf.text('Catatan Transaksi Kas Suzuki S-Presso Community', 14, 15);
     pdf.setFontSize(10);
     pdf.text(periodTitle, 14, 22);
     pdf.autoTable({
         startY: 28,
-        head: [['Tanggal', 'Jenis', 'Kategori', 'Keterangan / Warga', 'Jumlah (Rp)']],
-        body: rows.map(row => [row.Tanggal, row.Jenis, row.Kategori, row['Keterangan / Warga'], formatRupiah(row['Jumlah (Rp)'])]),
+        head: [['Tanggal', 'Jenis', 'Kategori', 'Keterangan / Member SSC', 'Jumlah (Rp)']],
+        body: rows.map(row => [row.Tanggal, row.Jenis, row.Kategori, row['Keterangan / Member SSC'], formatRupiah(row['Jumlah (Rp)'])]),
         styles: { fontSize: 9, cellPadding: 3 },
         headStyles: { fillColor: [15, 118, 110] },
         columnStyles: { 4: { halign: 'right' } },
@@ -153,13 +155,84 @@ function populateModalCategoryDropdown() {
     filtered.forEach(k => { select.innerHTML += `<option value="${k.id}">${k.nama}</option>`; });
 }
 
-function populateModalWargaDropdown() {
-    const select = document.getElementById('txWargaId');
-    if (!select) return;
-    select.innerHTML = '<option value="">-- Umum / Tanpa Nama Warga --</option>';
-    (window.dataStore.warga || []).forEach(w => {
-        select.innerHTML += `<option value="${w.id}">${w.nama} (${w.blok})</option>`;
+function getMemberLabel(member) {
+    return `${member.nla ?? ''} | ${member.name ?? ''}`;
+}
+
+function closeMemberSuggestions() {
+    const input = document.getElementById('txMemberSearch');
+    const options = document.getElementById('txMemberOptions');
+    if (!input || !options) return;
+    options.classList.add('hidden');
+    input.setAttribute('aria-expanded', 'false');
+}
+
+function renderMemberSuggestions() {
+    const input = document.getElementById('txMemberSearch');
+    const options = document.getElementById('txMemberOptions');
+    if (!input || !options) return;
+
+    const query = input.value.trim().toLocaleLowerCase();
+    const members = [...(window.dataStore.members || [])]
+        .filter(member => getMemberLabel(member).toLocaleLowerCase().includes(query))
+        .sort((first, second) => String(first.nla ?? '').localeCompare(String(second.nla ?? ''), undefined, { numeric: true, sensitivity: 'base' }));
+
+    options.replaceChildren();
+    if (members.length === 0) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'px-3 py-2 text-sm text-slate-500';
+        emptyState.textContent = 'Member tidak ditemukan.';
+        options.appendChild(emptyState);
+    } else {
+        members.forEach(member => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.setAttribute('role', 'option');
+            option.className = 'block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none';
+            option.textContent = getMemberLabel(member);
+            option.addEventListener('mousedown', event => event.preventDefault());
+            option.addEventListener('click', () => {
+                input.value = getMemberLabel(member);
+                document.getElementById('txMemberId').value = member.id;
+                closeMemberSuggestions();
+            });
+            options.appendChild(option);
+        });
+    }
+
+    options.classList.remove('hidden');
+    input.setAttribute('aria-expanded', 'true');
+}
+
+function setupMemberSearch() {
+    const input = document.getElementById('txMemberSearch');
+    const options = document.getElementById('txMemberOptions');
+    const memberId = document.getElementById('txMemberId');
+    if (!input || !options || !memberId || input.dataset.searchReady) return;
+
+    input.dataset.searchReady = 'true';
+    input.addEventListener('input', () => {
+        memberId.value = '';
+        renderMemberSuggestions();
     });
+    input.addEventListener('focus', renderMemberSuggestions);
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeMemberSuggestions();
+        if (event.key === 'Enter' && !options.classList.contains('hidden')) {
+            const firstOption = options.querySelector('[role="option"]');
+            if (firstOption) {
+                event.preventDefault();
+                firstOption.click();
+            }
+        }
+    });
+    document.addEventListener('click', event => {
+        if (!input.parentElement.contains(event.target)) closeMemberSuggestions();
+    });
+}
+
+function populateModalMemberDropdown() {
+    setupMemberSearch();
 }
 
 function openModalTransaksi(id = null) {
@@ -173,7 +246,7 @@ function openModalTransaksi(id = null) {
     if (modalTitle) modalTitle.innerText = id ? 'Edit Transaksi' : 'Catat Transaksi Baru';
 
     populateModalCategoryDropdown();
-    populateModalWargaDropdown();
+    populateModalMemberDropdown();
 
     if (id) {
         const t = window.dataStore.transaksi.find(x => x.id === id);
@@ -184,7 +257,10 @@ function openModalTransaksi(id = null) {
             populateModalCategoryDropdown();
             if (document.getElementById('txKategori')) document.getElementById('txKategori').value = t.kategoriId;
             if (document.getElementById('txJumlah')) document.getElementById('txJumlah').value = t.jumlah;
-            if (document.getElementById('txWargaId')) document.getElementById('txWargaId').value = t.wargaId || '';
+            const memberId = t.memberId || t.wargaId || '';
+            const member = (window.dataStore.members || []).find(item => item.id === memberId);
+            if (document.getElementById('txMemberId')) document.getElementById('txMemberId').value = memberId;
+            if (document.getElementById('txMemberSearch')) document.getElementById('txMemberSearch').value = member ? getMemberLabel(member) : '';
             if (document.getElementById('txKeterangan')) document.getElementById('txKeterangan').value = t.keterangan || '';
         }
     }
@@ -200,7 +276,13 @@ function closeModalTransaksi() {
 async function saveTransaksi(e) {
     e.preventDefault();
     const id = document.getElementById('transaksiId')?.value;
-    const wargaIdSelected = document.getElementById('txWargaId')?.value;
+    const memberIdSelected = document.getElementById('txMemberId')?.value;
+    const memberSearch = document.getElementById('txMemberSearch')?.value.trim();
+
+    if (memberSearch && !memberIdSelected) {
+        window.showToast('Pilih member dari daftar saran atau kosongkan pencarian.', true);
+        return;
+    }
 
     const item = {
         id: id || undefined,
@@ -208,17 +290,9 @@ async function saveTransaksi(e) {
         tipe: document.getElementById('txTipe')?.value || 'Pemasukan',
         kategoriId: document.getElementById('txKategori')?.value || '',
         jumlah: Number(document.getElementById('txJumlah')?.value) || 0,
-        wargaId: wargaIdSelected || '',
+        memberId: memberIdSelected || '',
         keterangan: document.getElementById('txKeterangan')?.value || ''
     };
-
-    if (wargaIdSelected && item.tipe === 'Pemasukan') {
-        const wIdx = window.dataStore.warga.findIndex(w => w.id === wargaIdSelected);
-        if (wIdx >= 0) {
-            const updatedWarga = { ...window.dataStore.warga[wIdx], statusIuran: 'Lunas' };
-            await window.dbSave('warga', updatedWarga);
-        }
-    }
 
     await window.dbSave('transaksi', item);
     closeModalTransaksi();

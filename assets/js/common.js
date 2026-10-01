@@ -29,7 +29,7 @@ function toggleAuthMode(mode) {
     } else {
         formReg.classList.add('hidden');
         formLogin.classList.remove('hidden');
-        title.innerText = 'Login Admin Tulip IX';
+        title.innerText = 'Login Admin Suzuki S-Presso Community';
     }
 }
 

@@ -14,7 +14,7 @@ let currentUser = null;
 let pendingDeleteInfo = null;
 
 // Data Store Global
-window.dataStore = { warga: [], kategori: [], transaksi: [] };
+window.dataStore = { members: [], kategori: [], transaksi: [] };
 window.isAdmin = false;
 
 // Realtime Data Sync from Firestore
@@ -22,7 +22,7 @@ function setupFirestoreSync() {
     updateDbStatusBadge(true);
 
     // Hanya subscribe koleksi yang dibutuhkan halaman ini (atribut data-collections pada <body>)
-    const wanted = (document.body.dataset.collections || 'warga,kategori,transaksi')
+    const wanted = (document.body.dataset.collections || 'members,kategori,transaksi')
         .split(',').map(s => s.trim()).filter(Boolean);
 
     wanted.forEach((name) => {
@@ -76,7 +76,7 @@ onAuthStateChanged(auth, (user) => {
         document.querySelectorAll('.th-aksi-col').forEach(el => el.classList.remove('hidden'));
     } else {
         if (adminStatus) {
-            adminStatus.innerText = "Mode Warga (Tamu)";
+            adminStatus.innerText = "Mode Member (Tamu)";
             adminStatus.className = "text-xs font-semibold text-slate-400 uppercase tracking-wider";
         }
         if (emailDisplay) emailDisplay.innerText = "Akses Hanya Lihat";

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Keuangan | Sistem Keuangan & Pendataan Warga Tulip IX</title>
+    <title>Dashboard Keuangan | Suzuki S-Presso Community</title>
     <!-- Favicon PNG / ICO -->
     <link rel="icon" type="image/png" href="assets/img/favicon.png">
     <!-- Tailwind CSS CDN + konfigurasi -->
@@ -22,7 +22,7 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col md:flex-row" data-page="dashboard" data-collections="warga,kategori,transaksi">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col md:flex-row" data-page="dashboard" data-collections="members,kategori,transaksi">
 
     <!-- Sidebar Navigation -->
     <aside id="sidebar" class="no-print bg-slate-900 text-slate-300 fixed md:static inset-y-0 left-0 w-64 -translate-x-full md:translate-x-0 flex-shrink-0 transition-transform duration-300 z-40 flex flex-col min-h-screen">
@@ -33,8 +33,8 @@
                     <i class="fa-solid fa-seedling"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg text-white leading-tight">Tulip IX</h1>
-                    <p class="text-xs text-slate-400">Kas & Pendataan Warga</p>
+                    <h1 class="font-bold text-lg text-white leading-tight">Suzuki S-Presso Community</h1>
+                    <p class="text-xs text-slate-400">Keuangan Komunitas</p>
                 </div>
             </div>
             <button id="closeSidebarMobile" class="md:hidden text-slate-400 hover:text-white">
@@ -56,10 +56,6 @@
                 <i class="fa-solid fa-chart-pie w-5 text-center"></i>
                 <span>Dashboard</span>
             </a>
-            <a href="masterwarga.html" id="nav-warga" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:bg-slate-800 hover:text-white">
-                <i class="fa-solid fa-users w-5 text-center"></i>
-                <span>Master Warga</span>
-            </a>
             <a href="masterkategori.html" id="nav-kategori" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:bg-slate-800 hover:text-white">
                 <i class="fa-solid fa-tags w-5 text-center"></i>
                 <span>Master Kategori</span>
@@ -76,7 +72,7 @@
 
         <!-- Footer Sidebar -->
         <div class="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
-            Lorong Tulip IX Pesona Kahuripan 2 RT.003/RW.026<br>&copy; 2026 Kas Warga
+            Suzuki S-Presso Community<br>&copy; 2026 SSC
         </div>
     </aside>
 
@@ -94,7 +90,7 @@
             <!-- User Status & Auth Action Button -->
             <div class="flex items-center space-x-3">
                 <div class="text-right hidden sm:block">
-                    <p id="adminUserStatus" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mode Warga (Tamu)</p>
+                    <p id="adminUserStatus" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mode Member (Tamu)</p>
                     <p id="adminEmailDisplay" class="text-sm font-semibold text-slate-700">Akses Hanya Lihat</p>
                 </div>
                 <button id="authBtn" onclick="handleAuthAction()" class="flex items-center space-x-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-semibold transition">
@@ -146,15 +142,12 @@
 
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                         <div class="flex items-center justify-between">
-                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Penghuni</span>
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Member</span>
                             <div class="p-2.5 rounded-xl bg-purple-50 text-purple-600">
                                 <i class="fa-solid fa-house-user text-lg"></i>
                             </div>
                         </div>
-                        <p id="dashTotalWarga" class="text-2xl font-extrabold text-slate-900 mt-2">0 KK</p>
-                        <p id="dashTunggakanBadge" class="text-xs text-amber-600 mt-1 font-medium">
-                            <i class="fa-solid fa-circle-exclamation"></i> 0 Menunggak Iuran
-                        </p>
+                        <p id="dashTotalMember" class="text-2xl font-extrabold text-slate-900 mt-2">0 Member</p>
                     </div>
                 </div>
 
@@ -190,13 +183,13 @@
             <button onclick="closeModalAuth()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
-            <h3 id="authModalTitle" class="font-bold text-xl text-slate-900 mb-4">Login Admin Tulip IX</h3>
+            <h3 id="authModalTitle" class="font-bold text-xl text-slate-900 mb-4">Login Admin Suzuki S-Presso Community</h3>
 
             <!-- Login Form -->
             <form id="formLogin" onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Admin</label>
-                    <input type="email" id="loginEmail" required placeholder="admin@tulip9.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <input type="email" id="loginEmail" required placeholder="admin@ssc.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
@@ -215,7 +208,7 @@
             <form id="formRegister" onsubmit="handleRegisterSubmit(event)" class="space-y-4 hidden">
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Pengurus</label>
-                    <input type="email" id="regEmail" required placeholder="pengurus@tulip9.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <input type="email" id="regEmail" required placeholder="pengurus@ssc.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password (Min. 6 Karakter)</label>

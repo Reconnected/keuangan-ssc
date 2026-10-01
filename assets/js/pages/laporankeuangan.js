@@ -40,10 +40,10 @@ function generateReport() {
             else totKeluar += amount;
 
             const katObj = window.dataStore.kategori.find(k => k.id === t.kategoriId);
-            const wargaObj = window.dataStore.warga.find(w => w.id === t.wargaId);
+            const memberObj = (window.dataStore.members || []).find(member => member.id === (t.memberId || t.wargaId));
 
             let ketDetail = t.keterangan || '-';
-            if (wargaObj) ketDetail += ` (${wargaObj.nama} - ${wargaObj.blok})`;
+            if (memberObj) ketDetail += ` (${memberObj.nla ?? ''} | ${memberObj.name ?? ''})`;
 
             tbody.innerHTML += `
                 <tr class="border-b border-slate-100">

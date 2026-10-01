@@ -8,7 +8,7 @@ function refreshAllUI() {
 
 function renderDashboard() {
     const transaksi = window.dataStore.transaksi || [];
-    const warga = window.dataStore.warga || [];
+    const members = window.dataStore.members || [];
 
     const now = new Date();
     const currentYearMonth = now.toISOString().slice(0, 7);
@@ -28,19 +28,14 @@ function renderDashboard() {
         }
     });
 
-    const tunggakanCount = warga.filter(w => w.statusIuran === 'Tunggak').length;
-
     const dashKas = document.getElementById('dashTotalKas');
     if (dashKas) dashKas.innerText = formatRupiah(totalKas);
     const dashMasuk = document.getElementById('dashMasukBulan');
     if (dashMasuk) dashMasuk.innerText = formatRupiah(masukBulanIni);
     const dashKeluar = document.getElementById('dashKeluarBulan');
     if (dashKeluar) dashKeluar.innerText = formatRupiah(keluarBulanIni);
-    const dashWarga = document.getElementById('dashTotalWarga');
-    if (dashWarga) dashWarga.innerText = warga.length + " KK";
-    const dashTunggak = document.getElementById('dashTunggakanBadge');
-    if (dashTunggak) dashTunggak.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${tunggakanCount} Menunggak Iuran`;
-
+    const dashMember = document.getElementById('dashTotalMember');
+    if (dashMember) dashMember.innerText = members.length + " Member";
     const recentContainer = document.getElementById('dashRecentTransactions');
     if (recentContainer) {
         recentContainer.innerHTML = '';

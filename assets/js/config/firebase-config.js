@@ -1,10 +1,10 @@
 // Konfigurasi proyek Firebase
 export const firebaseConfig = {
-  apiKey: "AIzaSyD66Zra4FwaTz12zqzdGXDuBr_C0BEmYno",
-  authDomain: "tulip-ix-financials.firebaseapp.com",
-  projectId: "tulip-ix-financials",
-  storageBucket: "tulip-ix-financials.firebasestorage.app",
-  messagingSenderId: "758565993410",
-  appId: "1:758565993410:web:030d695feba769249df45b",
-  measurementId: "G-KNQYVKCPP1"
+  apiKey: "AIzaSyCJk6ie71gW8cwucrRkLWtdUvgfD6bJJRI",
+  authDomain: "ssc-indonesia.firebaseapp.com",
+  projectId: "ssc-indonesia",
+  storageBucket: "ssc-indonesia.firebasestorage.app",
+  messagingSenderId: "555707562498",
+  appId: "1:555707562498:web:1023a984105def94bf851b",
+  measurementId: "G-4QB3HG4R8V"
 };
